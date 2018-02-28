@@ -1,11 +1,8 @@
 FROM ubuntu
 
 RUN apt-get update && \
-    apt-get install -y \
-        curl \
-        tzdata \
-        python-pip \
-        rm -rf /var/lib/apt/lists/* && \
+    apt-get install -y tzdata python-pip && \
+    rm -rf /var/lib/apt/lists && \
     pip install --upgrade pip 
 
 WORKDIR /opt/flaskproxy
