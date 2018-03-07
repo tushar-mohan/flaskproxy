@@ -1,8 +1,9 @@
 import os, sys
-from flask import Flask, request, Response
+from flask import Flask, request
 from flask_script import Manager, Shell
-from bs4 import BeautifulSoup
+# from bs4 import BeautifulSoup
 from urlparse import urlparse
+import requests
 
 app = Flask(__name__)
 manager = Manager(app)
@@ -42,8 +43,9 @@ if (dest_url[-1] != '/'):
 if debug: print "destination url: {0}".format(dest_url)
 parsed = urlparse(dest_url)
 if debug: print "Parsed dest url: {0}".format(parsed)
-
-dest_url_sans_path = '{0}://{1}'.format(parsed[0], parsed[1])
+dest_scheme = parsed[0]
+dest_host = parsed[1]
+dest_url_sans_path = '{0}://{1}'.format(parsed[0], dest_host)
 if (dest_url_sans_path[-1] != '/'):
     dest_url_sans_path += '/'
 if debug: print "dest url sans path: {0}".format(dest_url_sans_path)
@@ -54,11 +56,26 @@ dest_url_sans_http = dest_url.replace('https:', '').replace('http:', '').replace
 @app.route(src_prefix)
 @app.route(src_prefix + '<path:p>')
 def proxy(p = ''):
-    import requests
     url = dest_url + p
+    user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    proxy_headers = dict(request.headers)
+    proxy_headers['Host'] = dest_host
+    if 'X-Forwarded-For' not in request.headers:
+        proxy_headers['X-Forwarded-For'] = user_ip
+    if 'Referer' in request.headers:
+        orig_referrer = request.headers['Referer']
+        t_ref = orig_referrer.replace('http://','').replace('https://','').replace('https://','')
+        ref_path = "/".join(t_ref.split('/')[1:])
+        #proxy_headers['Referer'] = "{0}://{1}/{2}".format(dest_scheme, dest_host, ref_path)
+        proxy_headers['Referer'] = "{0}{1}".format(dest_url, ref_path)
+
+    if (debug): 
+        print "\n\nrequest url: {0}, remote_ip: {1}".format(url, user_ip)
+        print "original request_header:\n{0}".format(request.headers)
+        print "proxy_header:\n{0}".format(proxy_headers)
+
     try:
-        if debug: print "proxy: " + url
-        r = requests.get(url)
+        r = requests.get(url, headers=proxy_headers)
     except Exception as e:
         # return "Service Unavailable: " + str(e), 503
         pass
@@ -68,7 +85,7 @@ def proxy(p = ''):
         if (url2 != url):
             try:
                 if debug: print "proxy: trying " + url2
-                r = requests.get(url2)
+                r = requests.get(url2, headers=proxy_headers)
             except Exception as e:
                 pass
 
