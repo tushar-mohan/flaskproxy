@@ -7,16 +7,15 @@ It's goals are:
  * allow extensive rewrite capability
  * facilitate proxying to HTTPs sites
 
-## Examples
 
-## Using FlaskProxy
+## Quickstart
 
 You must set target URL in the environment before you start the server.
 In the example below, we want all queries to the proxy to be directed
 to `google.com`. 
 
 ```
-$ export FLASKPROXY_DEST_URL="https://www.google.com"
+$ export FLASKPROXY_SPEC="https://google.com"
 
 $ python manage.py runserver -h 0.0.0.0
  * Running on http://0.0.0.0:5000/ (Press CTRL+C to quit)
@@ -51,5 +50,4 @@ $ curl -Lv 127.0.0.1:5000
 < 
 [content from google.com]
 ```
-
 
