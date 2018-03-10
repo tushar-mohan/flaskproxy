@@ -2,7 +2,7 @@ import os, sys
 from flask import Flask, request
 from flask_script import Manager, Shell
 # from bs4 import BeautifulSoup
-from urlparse import urlparse
+# from urlparse import urlparse
 import requests
 
 app = Flask(__name__)
@@ -101,12 +101,18 @@ def create_spec_list():
         r = {'matchHost': mh, 'matchPrefix': mp, 'targetHost': scheme + '://' +th, 'targetPrefix': tp}
         retlist.append(r)
 
-    if (debug):
-        print 'spec table:\n{0}'.format(retlist)
     return retlist
+
+def print_routes(specs):
+    print "\nRoutes:"
+    for r in specs:
+        print "{0}{1} => {2}{3}".format(r['matchHost'], r['matchPrefix'], r['targetHost'], r['targetPrefix'])
+    print "\n"
 
 
 spec_list = create_spec_list()
+if (debug):
+    print_routes(spec_list)
 
 
 def get_match(host, prefix):
@@ -151,16 +157,27 @@ def proxy(p = ''):
     p = request.path
     if not x:
         return "No match for {0}/{1}: ".format(request.host, request.path), 501
-    dest_url = x['targetHost'] + x['targetPrefix']
     if (debug):
-        print "\n----\n"
-        print "match: {0}\n".format(str(x))
+        print "\n----"
+        print "match: {0}".format(str(x))
+
+    # remove the match prefix pattern at the beginning of the request
     if p.startswith(x['matchPrefix']):
         p = p.replace(x['matchPrefix'], '', 1)
+
+    # ensure p starts with a slash
     if not p.startswith('/'):
         p = '/' + p
 
-    url = dest_url + p
+    # if the request already starts with the target prefix, then
+    # we don't want to add it twice.
+    if p.startswith(x['targetPrefix']):
+        dest_base = x['targetHost'] 
+    else:
+        dest_base = x['targetHost'] + x['targetPrefix']
+
+    proxy_url = dest_base + p
+
     user_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
     proxy_headers = dict(request.headers)
     proxy_headers['Host'] = x['targetHost'].replace('https://','').replace('http://','')
@@ -170,38 +187,39 @@ def proxy(p = ''):
         orig_referrer = request.headers['Referer']
         t_ref = orig_referrer.replace('http://','').replace('https://','').replace('http://','')
         ref_path = "/".join(t_ref.split('/')[1:])
-        proxy_headers['Referer'] = "{0}/{1}".format(dest_url, ref_path)
+        proxy_headers['Referer'] = "{0}/{1}".format(dest_base, ref_path)
 
     if (debug): 
         print "request url: {0}, remote_ip: {1}".format(request.url, user_ip)
         if (debug_headers):
             print "original request_header:\n{0}".format(request.headers)
             print "proxy_header:\n{0}".format(proxy_headers)
-        print "proxy: attempting {0}".format(url)
+        print "proxy target: {0}".format(proxy_url)
     
     try:
-        r = requests.get(url, headers=proxy_headers)
+        r = requests.get(proxy_url, headers=proxy_headers)
     except Exception as e:
         pass
 
     if (r.status_code == 404):
-        if debug: print "proxy: 404 for " + url
         url2 = x['targetHost'] + p
-        if (url2 != url):
+        if (url2 != proxy_url):
+            if debug: 
+                print "proxy: 404 for " + proxy_url
+                print "proxy: second attempt: " + url2
             try:
-                if debug: print "proxy: second attempt " + url2
                 r = requests.get(url2, headers=proxy_headers)
             except Exception as e:
                 pass
+            proxy_url = url2
     if (r.status_code >= 400):
-        print "WARN: Got {0} for {1}".format(r.status_code, request.url)
+        print "WARN: Got {0} for {1} => {2}".format(r.status_code, request.url, proxy_url)
     return r.content, r.status_code, {'Content-Type': r.headers['content-type']} 
 
 
 @manager.command
 def routes():
-    for r in spec_list:
-        print "{0}{1} => {2}{3}".format(r['matchHost'], r['matchPrefix'], r['targetHost'], r['targetPrefix'])
+    print_routes(spec_list)
 
 if __name__ == '__main__':
     manager.run()
