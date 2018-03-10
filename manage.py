@@ -1,16 +1,24 @@
 import os, sys
 from flask import Flask, request
 from flask_script import Manager, Shell
-# from bs4 import BeautifulSoup
-# from urlparse import urlparse
 import requests
 
 app = Flask(__name__)
 manager = Manager(app)
-debug = os.getenv('FLASKPROXY_DEBUG', False)
-debug_headers = os.getenv('FLASKPROXY_DEBUG_HEADERS', False)
+
+try:
+    debug = int(os.getenv('FLASKPROXY_DEBUG', 0))
+except:
+    debug = 0
 
 
+def get_version():
+    try:
+        f = open('version', 'r')
+        v =  f.read()
+    except:
+        v = ''
+    return v
 
 # this function will read the environment variable FLASKPROXY_SPEC
 # It will expect a string of the format:
@@ -103,17 +111,16 @@ def create_spec_list():
 
     return retlist
 
-def print_routes(specs):
-    print "\nRoutes:"
+def get_routes(specs):
+    s = "Routes:"
     for r in specs:
-        print "{0}{1} => {2}{3}".format(r['matchHost'], r['matchPrefix'], r['targetHost'], r['targetPrefix'])
-    print "\n"
+        s += "\n{0}{1} => {2}{3}".format(r['matchHost'], r['matchPrefix'], r['targetHost'], r['targetPrefix'])
+    s += "\n"
+    return s
 
-
+print "FlaskProxy {0}".format(get_version())
 spec_list = create_spec_list()
-if (debug):
-    print_routes(spec_list)
-
+print get_routes(spec_list)
 
 def get_match(host, prefix):
     for p in spec_list:
@@ -122,20 +129,13 @@ def get_match(host, prefix):
                 return p
     return {}
 
-
 @app.route('/_version')
 def version():
-    try:
-        f = open('version', 'r')
-        v =  f.read()
-    except:
-        v = ''
-    return v
+    return get_version()
 
 @app.route('/_healthz')
 def health_check():
     return "OK\n"
-
 
 
 # request: http://127.0.0.1:5000/alert/xyzabc/test?x=y
@@ -156,10 +156,11 @@ def proxy(p = ''):
     x = get_match(request.host, request.path)
     p = request.path
     if not x:
-        return "No match for {0}/{1}: ".format(request.host, request.path), 501
+        return "No match for {0}/{1}: ".format(request.host, p), 501
     if (debug):
         print "\n----"
-        print "match: {0}".format(str(x))
+        if (debug > 1):
+            print "match: {0}".format(str(x))
 
     # remove the match prefix pattern at the beginning of the request
     if p.startswith(x['matchPrefix']):
@@ -191,7 +192,7 @@ def proxy(p = ''):
 
     if (debug): 
         print "request url: {0}, remote_ip: {1}".format(request.url, user_ip)
-        if (debug_headers):
+        if (debug > 2):
             print "original request_header:\n{0}".format(request.headers)
             print "proxy_header:\n{0}".format(proxy_headers)
         print "proxy target: {0}".format(proxy_url)
@@ -217,9 +218,9 @@ def proxy(p = ''):
     return r.content, r.status_code, {'Content-Type': r.headers['content-type']} 
 
 
-@manager.command
-def routes():
-    print_routes(spec_list)
+# @manager.command
+# def routes():
+#     print get_routes(spec_list)
 
 if __name__ == '__main__':
     manager.run()
