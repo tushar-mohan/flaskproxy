@@ -157,10 +157,9 @@ def proxy(p = ''):
     p = request.path
     if not x:
         return "No match for {0}/{1}: ".format(request.host, p), 501
-    if (debug):
+    if (debug > 1):
         print "\n----"
-        if (debug > 1):
-            print "match: {0}".format(str(x))
+        print "match: {0}".format(str(x))
 
     # remove the match prefix pattern at the beginning of the request
     if p.startswith(x['matchPrefix']):
@@ -191,7 +190,7 @@ def proxy(p = ''):
         proxy_headers['Referer'] = "{0}/{1}".format(dest_base, ref_path)
 
     if (debug): 
-        print "request url: {0}, remote_ip: {1}".format(request.url, user_ip)
+        print "[{0}] => {1}".format(user_ip, request.url)
         if (debug > 2):
             print "original request_header:\n{0}".format(request.headers)
             print "proxy_header:\n{0}".format(proxy_headers)
