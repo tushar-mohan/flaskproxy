@@ -1,7 +1,7 @@
 FROM ubuntu
 
 RUN apt-get update && \
-    apt-get install -y tzdata python-pip && \
+    apt-get install -y tzdata python-pip wget curl iputils-ping && \
     rm -rf /var/lib/apt/lists && \
     pip install --upgrade pip 
 
